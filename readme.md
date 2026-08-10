@@ -58,4 +58,4 @@ MIT — use it, fork it, ship it. Attribution appreciated but not required.
 
 ---
 
-Built by [Raphael](#) · Part of the GitOrbit project
+Built by [Raphael](https://raphael-index.web.app/) · Part of the GitOrbit project
