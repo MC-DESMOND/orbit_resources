@@ -1,0 +1,155 @@
+import { useEffect, useRef } from 'react'
+
+interface FancyCursorProps {
+  size?: number // dot diameter, in px
+  ringSize?: number // resting ring diameter, in px
+  ringHoverSize?: number // ring diameter when hovering an interactive element
+  ease?: number // 0-1, how quickly the ring catches up to the dot (higher = snappier)
+  color?: string // dot fill / ring border color
+  hoverSelector?: string // CSS selector for elements that trigger the hover state
+  clickBorderRadius?: string // ring border-radius while the mouse is held down
+  clickScale?: number // ring scale while the mouse is held down
+}
+
+export default function FancyCursor({
+  size = 6,
+  ringSize = 32,
+  ringHoverSize = 52,
+  ease = 0.15,
+  color = '#378ADD',
+  hoverSelector = 'a, button, [data-cursor-hover]',
+  clickBorderRadius = '8px', // ring border-radius while the mouse is held down
+  clickScale = 0.85, // ring scale while the mouse is held down
+}: FancyCursorProps) {
+  const dotRef = useRef<HTMLDivElement>(null)
+  const ringRef = useRef<HTMLDivElement>(null)
+  const mouse = useRef({ x: 0, y: 0 })
+  const ring = useRef({ x: 0, y: 0 })
+  const rafRef = useRef<number | undefined>(undefined)
+  const isDown = useRef(false)
+
+  // hide the native cursor while this is mounted
+  useEffect(() => {
+    const prevCursor = document.body.style.cursor
+    document.body.style.cursor = 'none'
+    return () => {
+      document.body.style.cursor = prevCursor
+    }
+  }, [])
+
+  // track mouse position, move the dot instantly
+  useEffect(() => {
+    function handleMouseMove(e: MouseEvent) {
+      mouse.current.x = e.clientX
+      mouse.current.y = e.clientY
+      const dot = dotRef.current
+      if (dot) {
+        dot.style.transform = `translate(-50%, -50%) translate(${e.clientX}px, ${e.clientY}px)`
+      }
+    }
+    window.addEventListener('mousemove', handleMouseMove)
+    return () => window.removeEventListener('mousemove', handleMouseMove)
+  }, [])
+
+  // grow the ring when hovering interactive elements
+  useEffect(() => {
+    function handleOver(e: MouseEvent) {
+      const target = e.target as HTMLElement
+      if (target.closest(hoverSelector) && ringRef.current) {
+        ringRef.current.style.width = `${ringHoverSize}px`
+        ringRef.current.style.height = `${ringHoverSize}px`
+      }
+    }
+    function handleOut(e: MouseEvent) {
+      const target = e.target as HTMLElement
+      if (target.closest(hoverSelector) && ringRef.current) {
+        ringRef.current.style.width = `${ringSize}px`
+        ringRef.current.style.height = `${ringSize}px`
+      }
+    }
+    document.addEventListener('mouseover', handleOver)
+    document.addEventListener('mouseout', handleOut)
+    return () => {
+      document.removeEventListener('mouseover', handleOver)
+      document.removeEventListener('mouseout', handleOut)
+    }
+  }, [hoverSelector, ringSize, ringHoverSize])
+
+  // morph the ring's shape while the mouse button is held down
+  useEffect(() => {
+    function handleMouseDown() {
+      isDown.current = true
+      const el = ringRef.current
+      if (el) {
+        el.style.borderRadius = clickBorderRadius
+      }
+    }
+    function handleMouseUp() {
+      isDown.current = false
+      const el = ringRef.current
+      if (el) {
+        el.style.borderRadius = '50%'
+      }
+    }
+    window.addEventListener('mousedown', handleMouseDown)
+    window.addEventListener('mouseup', handleMouseUp)
+    return () => {
+      window.removeEventListener('mousedown', handleMouseDown)
+      window.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [clickBorderRadius])
+
+  // ease the ring toward the dot every frame
+  useEffect(() => {
+    function tick() {
+      ring.current.x += (mouse.current.x - ring.current.x) * ease
+      ring.current.y += (mouse.current.y - ring.current.y) * ease
+      const el = ringRef.current
+      if (el) {
+        const scale = isDown.current ? clickScale : 1
+        el.style.transform = `translate(-50%, -50%) translate(${ring.current.x}px, ${ring.current.y}px) scale(${scale})`
+      }
+      rafRef.current = requestAnimationFrame(tick)
+    }
+    rafRef.current = requestAnimationFrame(tick)
+    return () => {
+      if (rafRef.current !== undefined) cancelAnimationFrame(rafRef.current)
+    }
+  }, [ease, clickScale])
+
+  return (
+    <>
+      <div
+        ref={ringRef}
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: ringSize,
+          height: ringSize,
+          borderRadius: '50%',
+          border: `1.5px solid ${color}`,
+          pointerEvents: 'none',
+          zIndex: 9999,
+          transform: 'translate(-50%, -50%)',
+          transition: 'width 0.2s, height 0.2s, border-radius 0.2s',
+        }}
+      />
+      <div
+        ref={dotRef}
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: size,
+          height: size,
+          borderRadius: '50%',
+          background: color,
+          pointerEvents: 'none',
+          zIndex: 9999,
+          transform: 'translate(-50%, -50%)',
+        }}
+      />
+    </>
+  )
+}
